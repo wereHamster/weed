@@ -1,15 +1,15 @@
 #!/bin/sh
 
 # Load the smoke credentials and local config if present.
-test -f ./credentials && . ./credentials
+test -f ./credentials && . ./credentials && export SMOKE_USERNAME SMOKE_PASSWORD
 test -f ./config      && . ./config
 
 # Clone the git repo into $TMPDIR. Use http because users may be behind
-# firefalls or proxies, and use github because kernel.org doesn't support
-# smart http.
+# firefalls or proxies. Unfortunately some proxies corrupt the smart-http
+# stream so use kernel.org which still uses dumb http.
 GIT_TMP_DIR="${TMPDIR-/tmp}/weed-git-$USER"
 if ! test -d "$GIT_TMP_DIR"; then
-  git clone https://github.com/git/git.git "$GIT_TMP_DIR"
+  git clone http://www.kernel.org/pub/scm/git/git.git "$GIT_TMP_DIR"
 fi
 
 # Change into the git directory and update the repo.
@@ -20,19 +20,25 @@ git remote update >/dev/null
 BRANCHES="maint master next pu"
 COMPILER="$(gcc -dumpmachine)-gcc-$(gcc -dumpversion) $COMPILER"
 
+# Git requires gmake, assume make is gmake but allow the user
+# to override it.
+MAKE="${MAKE-make}"
+
 # And now do the real work.
 for branch in $BRANCHES; do
   if test "x$(git rev-parse --quiet --verify $branch)" != "x$(git rev-parse origin/$branch)"; then
     for compiler in $COMPILER; do
-      export SMOKE_TAGS="$branch,$compiler"
       echo " *** Smoking $branch using $compiler ***"
 
+      SMOKE_TAGS="$branch,$compiler"
+      export SMOKE_TAGS
+
       git clean -dfx &&
-        git checkout $branch &&
-        git reset --hard origin/$branch &&
-        make clean all CC=$compiler &&
-        cd t &&
-        make smoke_report
+      git checkout $branch &&
+      git reset --hard origin/$branch &&
+      ${MAKE} clean all CC=$compiler &&
+      cd t &&
+      ${MAKE} smoke_report
     done
   fi
 done
