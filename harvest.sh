@@ -1,8 +1,7 @@
 #!/bin/sh
 
-# Load the smoke credentials and local config if present.
-test -f ./credentials && . ./credentials && export SMOKE_USERNAME SMOKE_PASSWORD
-test -f ./config      && . ./config
+# Load the local config file.
+test -f ./config && . ./config
 
 # Clone the git repo into $TMPDIR. Use http because users may be behind
 # firefalls or proxies. Unfortunately some proxies corrupt the smart-http
@@ -29,14 +28,12 @@ for branch in $BRANCHES; do
   if test "x$(git rev-parse --quiet --verify $branch)" != "x$(git rev-parse origin/$branch)"; then
     for compiler in $COMPILER; do
       echo " *** Smoking $branch using $compiler ***"
-
-      SMOKE_TAGS="$branch,$compiler"
-      export SMOKE_TAGS
+      SMOKE_TAGS="$branch,$compiler" && export SMOKE_TAGS
 
       git clean -dfx &&
       git checkout $branch &&
       git reset --hard origin/$branch &&
-      ${MAKE} clean all CC=$compiler &&
+      ${MAKE} all CC=$compiler $OPTS &&
       cd t &&
       ${MAKE} smoke_report
     done
